@@ -7,5 +7,7 @@ namespace CVV
     public interface ITypeResolver
     {
         Type ResolveType(Type type);
+
+        object ActivateType(Type type);
     }
 }

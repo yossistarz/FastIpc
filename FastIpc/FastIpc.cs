@@ -269,6 +269,22 @@ namespace CVV
             return type;
         }
 
+        private object ActivateType(Type type)
+        {
+            object instance;
+            if (_typeResolver != null)
+            {
+                instance = _typeResolver.ActivateType(type);
+                if (instance != null)
+                {
+                    return instance;
+                }
+            }
+
+            instance = Activator.CreateInstance(type, true);
+            return instance;
+        }
+
         void ReceiveActivation(BinaryReader reader)
         {
             int messageNumber = reader.ReadInt32();
@@ -278,7 +294,7 @@ namespace CVV
             {
                 var type = DeserializeType(reader);
                 var typeToCreate = GetTypeToActivate(type);
-                instance = Activator.CreateInstance(typeToCreate, true);
+                instance = ActivateType(typeToCreate);
                 var proxy = (IProxy)Activator.CreateInstance(typeof(Proxy<>).MakeGenericType(type), BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { instance, DomainAddress }, null);
                 instance = RegisterLocalProxy(proxy);
             }
