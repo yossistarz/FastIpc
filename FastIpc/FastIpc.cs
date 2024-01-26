@@ -15,8 +15,10 @@ namespace CVV
         static int _lastMessageID, _lastObjectID;
 
         private object m_Lock = new object();
+        private ITypeResolver _typeResolver;
 
         public readonly byte DomainAddress;
+
 
         readonly OutPipe m_OutPipe;
         readonly InPipe m_InPipe;
@@ -39,6 +41,11 @@ namespace CVV
 
             m_OutPipe = new OutPipe(String.Concat(name, (isOwner ? ".A" : ".B")), isOwner);
             m_InPipe = new InPipe(String.Concat(name, (isOwner ? ".B" : ".A")), isOwner, OnMessageReceived);
+        }
+
+        public FastIpc(string name, bool isOwner, Module module, ITypeResolver typeResolver) : this(name, isOwner, module)
+        {
+            _typeResolver = typeResolver;
         }
 
         protected override void CleanUpResources()
@@ -252,6 +259,16 @@ namespace CVV
             }, TaskCreationOptions.PreferFairness);
         }
 
+        private Type GetTypeToActivate(Type type)
+        {
+            if (_typeResolver != null)
+            {
+                return _typeResolver.ResolveType(type);
+            }
+
+            return type;
+        }
+
         void ReceiveActivation(BinaryReader reader)
         {
             int messageNumber = reader.ReadInt32();
@@ -260,7 +277,8 @@ namespace CVV
             try
             {
                 var type = DeserializeType(reader);
-                instance = Activator.CreateInstance(type, true);
+                var typeToCreate = GetTypeToActivate(type);
+                instance = Activator.CreateInstance(typeToCreate, true);
                 var proxy = (IProxy)Activator.CreateInstance(typeof(Proxy<>).MakeGenericType(type), BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { instance, DomainAddress }, null);
                 instance = RegisterLocalProxy(proxy);
             }
@@ -436,6 +454,7 @@ namespace CVV
 
                     return proxy;
                 }
+
                 // The other domain owns the object.
                 var proxyType = typeof(Proxy<>).MakeGenericType(genericType);
                 return Activator.CreateInstance(proxyType, BindingFlags.NonPublic | BindingFlags.Instance, null, new object[]
